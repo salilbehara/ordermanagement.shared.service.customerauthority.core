@@ -352,7 +352,6 @@ namespace ebsco.svc.customer.contract
             #region ConsolidatedInvoicing
             IRepository repository = null;
             IValidationRepository validationRepo = null;
-            IFeatureConfiguration featureConfig = null;
 
             try
             {
@@ -362,7 +361,6 @@ namespace ebsco.svc.customer.contract
                     {
                         repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
                         validationRepo = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                        featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                     }
                     catch (ActivationException)
                     {
@@ -423,42 +421,19 @@ namespace ebsco.svc.customer.contract
                 #endregion
 
                 #region F24216 - Add EDI System
-                if (featureConfig != null)
-                {
-                    if (featureConfig.IsAvailable(FeaturesEnum.EDISystem))
-                    {
-                        if (!string.IsNullOrWhiteSpace(EDISystem) && IncludeEDIInvoicingDetails == false)
-                            results.Add(new ValidationResult("EDI System is not valid.", new[] { "EDISystem" }));
-                        if (string.IsNullOrWhiteSpace(EDISystem) && IncludeEDIInvoicingDetails == true)
-                            results.Add(new ValidationResult("EDI System is required.", new[] { "EDISystem" }));
-                    }
-                }
+                if (!string.IsNullOrWhiteSpace(EDISystem) && IncludeEDIInvoicingDetails == false)
+                    results.Add(new ValidationResult("EDI System is not valid.", new[] { "EDISystem" }));
+                if (string.IsNullOrWhiteSpace(EDISystem) && IncludeEDIInvoicingDetails == true)
+                    results.Add(new ValidationResult("EDI System is required.", new[] { "EDISystem" }));
                 #endregion
 
                 #region F20178 - Add Fund Code (Client Billing info fields)
-                if (featureConfig != null)
-                {
-                    if (featureConfig.IsAvailable(FeaturesEnum.FundCodeFields))
-                    {
-                        if (FundCodeRequired == 1 && !string.IsNullOrWhiteSpace(FundCodeRequiredComments))
-                            results.Add(new ValidationResult("Cannot add Fund Code Required Comments.", new[] { "FundCodeRequiredComments" }));
-                        if (FundCodeRequired == 1 && !string.IsNullOrWhiteSpace(FundCodeToPrintOnInvoice))
-                            results.Add(new ValidationResult("Cannot add Fund Code to print on Invoice.", new[] { "FundCodeToPrintOnInvoice" }));
-                        if (FundCodeRequired == 2 && FundCodeToPrintOnInvoice?.Length > 6)
-                            results.Add(new ValidationResult("Fund Code to print on Invoice can not be more than 6 characters.", new[] { "FundCodeToPrintOnInvoice" }));
-                    }
-                    else
-                    {
-                        if (!string.IsNullOrWhiteSpace(HegisNumberRequiredComments) && HegisNumbersRequired == false)
-                            results.Add(new ValidationResult("Cannot add Hegis Number Required Comments.", new[] { "HegisNumberRequiredComments" }));
-                        if (!string.IsNullOrWhiteSpace(HegisNumberRequiredComments) && HegisNumberRequiredComments.StartsWith("------"))
-                            results.Add(new ValidationResult("Hegis Number Required Comments is invalid.", new[] { "HegisNumberRequiredComments" }));
-                        if (!string.IsNullOrWhiteSpace(HegisNumberRequiredComments) &&
-                            (HegisNumberRequiredComments.StartsWith("**C") || HegisNumberRequiredComments.StartsWith("**c")) &&
-                            !Regex.IsMatch(HegisNumberRequiredComments, @"\*\*[Cc][123]"))
-                            results.Add(new ValidationResult("Hegis Number Required Comments is invalid.", new[] { "HegisNumberRequiredComments" }));
-                    }
-                }
+                if (FundCodeRequired == 1 && !string.IsNullOrWhiteSpace(FundCodeRequiredComments))
+                    results.Add(new ValidationResult("Cannot add Fund Code Required Comments.", new[] { "FundCodeRequiredComments" }));
+                if (FundCodeRequired == 1 && !string.IsNullOrWhiteSpace(FundCodeToPrintOnInvoice))
+                    results.Add(new ValidationResult("Cannot add Fund Code to print on Invoice.", new[] { "FundCodeToPrintOnInvoice" }));
+                if (FundCodeRequired == 2 && FundCodeToPrintOnInvoice?.Length > 6)
+                    results.Add(new ValidationResult("Fund Code to print on Invoice can not be more than 6 characters.", new[] { "FundCodeToPrintOnInvoice" }));
                 #endregion
 
                 #region ILSFormat
@@ -543,72 +518,55 @@ namespace ebsco.svc.customer.contract
                 #endregion
 
                 #region F13205;
-                if (featureConfig != null)
+                IEnumerable<BillingLocation> billingLocations = null;
+                if (IncludeInvoiceDetailReport == true && PrintInvoicesInOldFormat == true)
+                    results.Add(new ValidationResult("Cannot include Invoice Detail Report if Invoice is printed in old format.", new[] { "IncludeInvoiceDetailReport" }));
+
+                if (PrintPageTotal == true && PrintRunningSubTotal == true)
+                    results.Add(new ValidationResult("Cannot print both Running Sub-Total and Page Total on an Invoice.", new[] { "PrintPageTotal" }));
+
+                if (repository != null && !IsDefault)
                 {
-                    IEnumerable<BillingLocation> billingLocations = null;
-                    var CcisAddedToInvoicesProfileFeatureEnabled = featureConfig.IsAvailable(FeaturesEnum.CcisAddedToInvoicesProfile);
+                    var suffixLegacyMappingIds = LegacyMappings.Where(lm => lm.LegacySystemName == LegacySystemNames.Suffix.Name).Select(x => x.Id);
 
-                    if (CcisAddedToInvoicesProfileFeatureEnabled)
+                    billingLocations = repository.GetCustomer(CustomerId, RelatedEntitiesEnum.BillingLocations)
+                            .BillingLocations.Where(x => x.LegacyMappings.Any(lm => suffixLegacyMappingIds.Contains(lm.Id)))
+                            .ToArray();
+
+                    if (SplitPaymentUsePublicAdministrationVATMatrix && !billingLocations.All(x => x.CountryCode.Equals("IT")))
+                        results.Add(new ValidationResult("Public Administration VAT Matrix is only available in Italy.", new[] { "SplitPaymentUsePublicAdministrationVatMatrix" }));
+
+                }
+
+
+                //begin - can move to attributes when feature CA.F13205 enabled
+                if (string.IsNullOrWhiteSpace(MailInvoicesTo))
+                    results.Add(new ValidationResult("Mail Invoices To is a required field.", new[] { "MailInvoicesTo" }));
+
+                Regex regex = new Regex(@"(([a-zA-Z0-9_\-\.']+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,63}|[0-9]{1,3})(\]?)(\s*;\s*|\s*$))*");
+                if (!string.IsNullOrEmpty(AlternateReplyToEmailAddressForInvoices))
+                {
+                    if (AlternateReplyToEmailAddressForInvoices.Length > 100)
+                        results.Add(new ValidationResult("Alternate Reply To Email Address for Invoices exceeds maximum length of 100.", new[] { "AlternateReplyToEmailAddressForInvoices" }));
+
+                    var email = regex.Match(AlternateReplyToEmailAddressForInvoices);
+                    if (email.Value.Length != AlternateReplyToEmailAddressForInvoices.Length)
                     {
-                        if (IncludeInvoiceDetailReport == true && PrintInvoicesInOldFormat == true)
-                            results.Add(new ValidationResult("Cannot include Invoice Detail Report if Invoice is printed in old format.", new[] { "IncludeInvoiceDetailReport" }));
-
-                        if (PrintPageTotal == true && PrintRunningSubTotal == true)
-                            results.Add(new ValidationResult("Cannot print both Running Sub-Total and Page Total on an Invoice.", new[] { "PrintPageTotal" }));
-
-                        // if (featureConfig.IsAvailable(FeaturesEnum.ManageBillingAddresses))
-                        if (featureConfig.IsAvailable("CA.F7222.US326097.BillingLocationSAPSync"))
-                        {
-                            if (repository != null && !IsDefault)
-                            {
-                                var suffixLegacyMappingIds = LegacyMappings.Where(lm => lm.LegacySystemName == LegacySystemNames.Suffix.Name).Select(x => x.Id);
-
-                                billingLocations = repository.GetCustomer(CustomerId, RelatedEntitiesEnum.BillingLocations)
-                                       .BillingLocations.Where(x => x.LegacyMappings.Any(lm => suffixLegacyMappingIds.Contains(lm.Id)))
-                                       .ToArray();
-
-                                if (SplitPaymentUsePublicAdministrationVATMatrix && !billingLocations.All(x => x.CountryCode.Equals("IT")))
-                                    results.Add(new ValidationResult("Public Administration VAT Matrix is only available in Italy.", new[] { "SplitPaymentUsePublicAdministrationVatMatrix" }));
-
-                            }
-                        }
-                        else
-                        {
-                            if (SplitPaymentUsePublicAdministrationVATMatrix == true && !legacyOfficeCodes.Any(x => new[] { "ZI", "ZQ" }.Contains(x)))
-                                results.Add(new ValidationResult("Public Administration VAT Matrix is only available in Italy.", new[] { "SplitPaymentUsePublicAdministrationVatMatrix" }));
-                        }
-
-
-                        //begin - can move to attributes when feature CA.F13205 enabled
-                        if (string.IsNullOrWhiteSpace(MailInvoicesTo))
-                            results.Add(new ValidationResult("Mail Invoices To is a required field.", new[] { "MailInvoicesTo" }));
-
-                        Regex regex = new Regex(@"(([a-zA-Z0-9_\-\.']+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,63}|[0-9]{1,3})(\]?)(\s*;\s*|\s*$))*");
-                        if (!string.IsNullOrEmpty(AlternateReplyToEmailAddressForInvoices))
-                        {
-                            if (AlternateReplyToEmailAddressForInvoices.Length > 100)
-                                results.Add(new ValidationResult("Alternate Reply To Email Address for Invoices exceeds maximum length of 100.", new[] { "AlternateReplyToEmailAddressForInvoices" }));
-
-                            var email = regex.Match(AlternateReplyToEmailAddressForInvoices);
-                            if (email.Value.Length != AlternateReplyToEmailAddressForInvoices.Length)
-                            {
-                                results.Add(new ValidationResult("Alternate Reply to Email Addresses for Invoices is invalid.  Multiple emails should be seperated by a semicolon ';'", new[] { "AlternateReplyToEmailAddressForInvoices" }));
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(EmailAddressForOvernightEdits))
-                        {
-                            if (EmailAddressForOvernightEdits.Length > 200)
-                                results.Add(new ValidationResult("Email Address for Overnight Edits exceeds maximum length of 200.", new[] { "EmailAddressForOvernightEdits" }));
-                            var email = regex.Match(EmailAddressForOvernightEdits);
-                            if (email.Value.Length != EmailAddressForOvernightEdits.Length)
-                            {
-                                results.Add(new ValidationResult("Email Addresses for Overnight Edits is invalid..  Multiple emails should be seperated by a semicolon ';'", new[] { "EmailAddressForOvernightEdits" }));
-                            }
-                        }
-                        //end - can move to attributes when feature CA.F13205 enabled
+                        results.Add(new ValidationResult("Alternate Reply to Email Addresses for Invoices is invalid.  Multiple emails should be seperated by a semicolon ';'", new[] { "AlternateReplyToEmailAddressForInvoices" }));
                     }
                 }
+
+                if (!string.IsNullOrEmpty(EmailAddressForOvernightEdits))
+                {
+                    if (EmailAddressForOvernightEdits.Length > 200)
+                        results.Add(new ValidationResult("Email Address for Overnight Edits exceeds maximum length of 200.", new[] { "EmailAddressForOvernightEdits" }));
+                    var email = regex.Match(EmailAddressForOvernightEdits);
+                    if (email.Value.Length != EmailAddressForOvernightEdits.Length)
+                    {
+                        results.Add(new ValidationResult("Email Addresses for Overnight Edits is invalid..  Multiple emails should be seperated by a semicolon ';'", new[] { "EmailAddressForOvernightEdits" }));
+                    }
+                }
+                //end - can move to attributes when feature CA.F13205 enabled
                 #endregion
 
                 if (validationRepo != null)

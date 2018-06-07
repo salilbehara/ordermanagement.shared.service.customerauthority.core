@@ -76,17 +76,6 @@ namespace ebsco.svc.customer.contract
         public new IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
 
-            IFeatureConfiguration featureConfig = null;
-            if (ServiceLocator.IsLocationProviderSet)
-            try
-            {
-                featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
-            }
-            catch (ActivationException)
-            {
-                //do nothing
-            }
-
             var results = new List<ValidationResult>();
 
             if ((new[] { "US", "CA" }.Contains(CountryCode)) && string.IsNullOrWhiteSpace(PostalCode))
@@ -129,17 +118,14 @@ namespace ebsco.svc.customer.contract
                         !new[] { "DU", "EN", "FR", "GE", "IT", "PR", "SO", "SP", "TU" }.Contains(ShippingProfile.Language))
                         results.Add(new ValidationResult("Language code is invalid.", new[] { "Language" }));
 
-                    if (featureConfig.IsAvailable(FeaturesEnum.SplitTaxExemptAndVatOnShippingProfile))
+                    if (ShippingProfile != null)
                     {
-                        if (ShippingProfile != null)
-                        {
-                            if (accountLegacyMapping.LegacyIdentifier.StartsWith("Z") && !string.IsNullOrEmpty(ShippingProfile.TaxExemptNumber))
-                                results.Add(new ValidationResult("Tax Exempt Number cannot be used for this office."));
+                        if (accountLegacyMapping.LegacyIdentifier.StartsWith("Z") && !string.IsNullOrEmpty(ShippingProfile.TaxExemptNumber))
+                            results.Add(new ValidationResult("Tax Exempt Number cannot be used for this office."));
 
-                            //VAT Number  Office != Z * Value is not null   VAT Number cannot be used for this office.
-                            if (!string.IsNullOrEmpty(ShippingProfile.VATNumber) && !accountLegacyMapping.LegacyIdentifier.StartsWith("Z"))
-                                results.Add(new ValidationResult("VAT Number cannot be used for this office.", new[] { "VATNumber" }));
-                        }
+                        //VAT Number  Office != Z * Value is not null   VAT Number cannot be used for this office.
+                        if (!string.IsNullOrEmpty(ShippingProfile.VATNumber) && !accountLegacyMapping.LegacyIdentifier.StartsWith("Z"))
+                            results.Add(new ValidationResult("VAT Number cannot be used for this office.", new[] { "VATNumber" }));
                     }
                 }
 
@@ -289,41 +275,38 @@ namespace ebsco.svc.customer.contract
 
 
                 #region Postage
-                if (featureConfig.IsAvailable(FeaturesEnum.AddJetsDropAddress))
+                if (!string.IsNullOrEmpty(ShippingProfile.Postage))
                 {
-                    if (!string.IsNullOrEmpty(ShippingProfile.Postage))
+                    string countryCode = CountryCode;
+                    bool isAlternateShippingAddress = false;
+
+                    if (JetsAddress != null)
                     {
-                        string countryCode = CountryCode;
-                        bool isAlternateShippingAddress = false;
+                        countryCode = JetsAddress.CountryCode;
+                        isAlternateShippingAddress = true;
+                    }
+                    else if (DropAddress != null)
+                    {
+                        countryCode = DropAddress.CountryCode;
+                        isAlternateShippingAddress = true;
+                    }
 
-                        if (JetsAddress != null)
-                        {
-                            countryCode = JetsAddress.CountryCode;
-                            isAlternateShippingAddress = true;
-                        }
-                        else if (DropAddress != null)
-                        {
-                            countryCode = DropAddress.CountryCode;
-                            isAlternateShippingAddress = true;
-                        }
+                    if (ShippingProfile.Postage == " " && countryCode != "US")
+                    {
+                        results.Add(isAlternateShippingAddress
+                            ? new ValidationResult("US postage may not be valid based on alternate shipping address.",
+                                new[] { "Postage" })
+                            : new ValidationResult("US postage may not be valid based on shipping address.",
+                                new[] { "Postage" }));
+                    }
 
-                        if (ShippingProfile.Postage == " " && countryCode != "US")
-                        {
-                            results.Add(isAlternateShippingAddress
-                                ? new ValidationResult("US postage may not be valid based on alternate shipping address.",
-                                    new[] { "Postage" })
-                                : new ValidationResult("US postage may not be valid based on shipping address.",
-                                    new[] { "Postage" }));
-                        }
-
-                        if (ShippingProfile.Postage != " " && countryCode == "US")
-                        {
-                            results.Add(isAlternateShippingAddress
-                                ? new ValidationResult("Postage must be US based on alternate shipping address.",
-                                    new[] { "Postage" })
-                                : new ValidationResult("Postage must be US based on shipping address.",
-                                    new[] { "Postage" }));
-                        }
+                    if (ShippingProfile.Postage != " " && countryCode == "US")
+                    {
+                        results.Add(isAlternateShippingAddress
+                            ? new ValidationResult("Postage must be US based on alternate shipping address.",
+                                new[] { "Postage" })
+                            : new ValidationResult("Postage must be US based on shipping address.",
+                                new[] { "Postage" }));
                     }
                 }
                 #endregion
@@ -522,12 +505,10 @@ namespace ebsco.svc.customer.contract
             List<string> warnings = new List<string>();
 
             IRepository repository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -615,70 +596,65 @@ namespace ebsco.svc.customer.contract
                         //var flag = featureConfig.IsAvailable(FeaturesEnum.)
                         //_log.
 
-                        if (featureConfig.IsAvailable(FeaturesEnum.AddJetsDropAddress))
+                        if (!string.IsNullOrEmpty(ShippingProfile?.Postage))
                         {
-                            if (!string.IsNullOrEmpty(ShippingProfile?.Postage))
+                            string countryCode = CountryCode;
+                            bool isAlternateShippingAddress = false;
+
+                            if (JetsAddress != null)
                             {
-                                string countryCode = CountryCode;
-                                bool isAlternateShippingAddress = false;
-
-                                if (JetsAddress != null)
-                                {
-                                    countryCode = JetsAddress.CountryCode;
-                                    isAlternateShippingAddress = true;
-                                }
-                                else if (DropAddress != null)
-                                {
-                                    countryCode = DropAddress.CountryCode;
-                                    isAlternateShippingAddress = true;
-                                }
-
-                                if (ShippingProfile.Postage == "C" && countryCode != "CA")
-                                {
-                                    warnings.Add(isAlternateShippingAddress ? "Canadian postage may not be valid based on alternate shipping address." : "Canadian postage may not be valid based on shipping address.");
-                                }
-
-                                if (ShippingProfile.Postage == "F" && countryCode == "CA")
-                                {
-                                    warnings.Add(isAlternateShippingAddress ? "Foreign postage may not be valid based on alternate shipping address." : "Foreign postage may not be valid based on shipping address.");
-                                }
-
-                                if (ShippingProfile.Postage == "P" && countryCode == "CA")
-                                {
-                                    warnings.Add(isAlternateShippingAddress ? "Pan-American postage may not be valid based on alternate shipping address." : "Pan-American postage may not be valid based on shipping address.");
-                                }
+                                countryCode = JetsAddress.CountryCode;
+                                isAlternateShippingAddress = true;
                             }
-                        }else
+                            else if (DropAddress != null)
+                            {
+                                countryCode = DropAddress.CountryCode;
+                                isAlternateShippingAddress = true;
+                            }
+
+                            if (ShippingProfile.Postage == "C" && countryCode != "CA")
+                            {
+                                warnings.Add(isAlternateShippingAddress ? "Canadian postage may not be valid based on alternate shipping address." : "Canadian postage may not be valid based on shipping address.");
+                            }
+
+                            if (ShippingProfile.Postage == "F" && countryCode == "CA")
+                            {
+                                warnings.Add(isAlternateShippingAddress ? "Foreign postage may not be valid based on alternate shipping address." : "Foreign postage may not be valid based on shipping address.");
+                            }
+
+                            if (ShippingProfile.Postage == "P" && countryCode == "CA")
+                            {
+                                warnings.Add(isAlternateShippingAddress ? "Pan-American postage may not be valid based on alternate shipping address." : "Pan-American postage may not be valid based on shipping address.");
+                            }
+                        }
+                        if (!string.IsNullOrEmpty(ShippingProfile?.Postage))
                         {
-                            if (!string.IsNullOrEmpty(ShippingProfile?.Postage))
+
+                            if (new[] { " " }.Contains(ShippingProfile.Postage) && CountryCode != "US")
                             {
-
-                                if (new[] { " " }.Contains(ShippingProfile.Postage) && CountryCode != "US")
-                                {
-                                    warnings.Add("US postage may not be valid based on shipping address.");
-                                }
-
-                                if (new[] { "F" }.Contains(ShippingProfile.Postage) && (CountryCode == "US" || CountryCode == "CA"))
-                                {
-                                    warnings.Add("Foreign postage may not be valid based on shipping address.");
-                                }
-
-                                if (new[] { "P" }.Contains(ShippingProfile.Postage) && (CountryCode == "US" || CountryCode == "CA"))
-                                {
-                                    warnings.Add("Pan-American postage may not be valid based on shipping address.");
-                                }
-
-                                if (new[] { "C" }.Contains(ShippingProfile.Postage) && CountryCode != "CA")
-                                {
-                                    warnings.Add("Canadian postage may not be valid based on shipping address.");
-                                }
-
-                                if (!new[] { "C" }.Contains(ShippingProfile.Postage) && CountryCode == "CA")
-                                {
-                                    warnings.Add("Non-Canadian postage may not be valid based on shipping address.");
-                                }
-
+                                warnings.Add("US postage may not be valid based on shipping address.");
                             }
+
+                            if (new[] { "F" }.Contains(ShippingProfile.Postage) && (CountryCode == "US" || CountryCode == "CA"))
+                            {
+                                warnings.Add("Foreign postage may not be valid based on shipping address.");
+                            }
+
+                            if (new[] { "P" }.Contains(ShippingProfile.Postage) && (CountryCode == "US" || CountryCode == "CA"))
+                            {
+                                warnings.Add("Pan-American postage may not be valid based on shipping address.");
+                            }
+
+                            if (new[] { "C" }.Contains(ShippingProfile.Postage) && CountryCode != "CA")
+                            {
+                                warnings.Add("Canadian postage may not be valid based on shipping address.");
+                            }
+
+                            if (!new[] { "C" }.Contains(ShippingProfile.Postage) && CountryCode == "CA")
+                            {
+                                warnings.Add("Non-Canadian postage may not be valid based on shipping address.");
+                            }
+
                         }
 
                         if (!ShippingProfile.RateClass.HasFlag(ShippingProfile.RateClassEnum.Individual) &&

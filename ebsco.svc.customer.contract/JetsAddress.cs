@@ -1,7 +1,6 @@
 ﻿using CommonServiceLocator;
 using ebsco.svc.changehistory.contract;
 using ebsco.svc.customer.contract.FeatureFlags;
-using FeatureToggle;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -58,26 +57,9 @@ namespace ebsco.svc.customer.contract
         {
             var results = new List<ValidationResult>();
 
-            IFeatureConfiguration featureConfig = null;
-            if (ServiceLocator.IsLocationProviderSet)
-                try
-                {
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
-                }
-                catch (ActivationException)
-                {
-                    //do nothing
-                }
-
             #region JETSServiceChargeAmount
-            if (featureConfig != null)
-            {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddRemainingCCILines))
-                {
-                    if ((JetsServiceChargeAmount.HasValue) && (JetsServiceChargePercent.HasValue))
-                        results.Add(new ValidationResult("JETS Service Charge Amount and Jets Service Charge Percent are mutually exclusive.", new[] { "JETSServiceChargeAmount" }));
-                }
-            }
+            if ((JetsServiceChargeAmount.HasValue) && (JetsServiceChargePercent.HasValue))
+                results.Add(new ValidationResult("JETS Service Charge Amount and Jets Service Charge Percent are mutually exclusive.", new[] { "JETSServiceChargeAmount" }));
             #endregion
 
             return results;

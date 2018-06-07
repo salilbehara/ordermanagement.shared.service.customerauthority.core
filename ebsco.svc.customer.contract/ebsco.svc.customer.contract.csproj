@@ -7,7 +7,6 @@
   <ItemGroup>
     <PackageReference Include="CommonServiceLocator" Version="2.0.3" />
     <PackageReference Include="Ebsco.ChangeHistory" Version="1.4.0" />
-    <PackageReference Include="FeatureToggle.Common" Version="4.0.2" />
     <PackageReference Include="log4net" Version="2.0.8" />
     <PackageReference Include="Microsoft.AspNetCore" Version="2.1.0" />
     <PackageReference Include="System.ComponentModel.Annotations" Version="4.1.0" />

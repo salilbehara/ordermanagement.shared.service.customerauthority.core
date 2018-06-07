@@ -97,13 +97,11 @@ namespace ebsco.svc.customer.contract
 
             IRepository repository = null;
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -142,48 +140,41 @@ namespace ebsco.svc.customer.contract
                     results.Add(new ValidationResult(string.Format("Profile failed SAP validation: {0}", errorMessage), null));
             }
             #region F17008;
-            if (featureConfig != null)
+
+            if (!String.IsNullOrEmpty(MailRenewalsToComments) && String.IsNullOrEmpty(MailRenewalsTo))
+                results.Add(new ValidationResult("Mail Renewals To is not selected.", new[] { "MailRenewalsTo" }));
+
+            if (!String.IsNullOrEmpty(MailRenewalsToComments) && MailRenewalsToComments.Length > 500)
+                results.Add(new ValidationResult("Mail Renewals To Comments length cannot be greater than 500."));
+
+
+            if (!String.IsNullOrEmpty(PaymentDocumentHeading) && PaymentDocumentHeading.Length > 30)
+                results.Add(new ValidationResult("Payment Document Heading length cannot be greater than 30."));
+
+
+            if (!String.IsNullOrEmpty(PaymentDocumentHeading) && ProduceRenewalAsAPaymentDocument == false)
+                results.Add(new ValidationResult("Heading is not valid if Renewal is not set up as Payment Document."));
+
+
+
+            //   if (UsesEbsconetEpackageRenewals == true && UsesEbsconetForRenewals == true)
+            //    results.Add(new ValidationResult("EBSCONET ePackage Renewals (EPR) and EBSCONET Renewals are mutually exclusive."));
+
+
+            if (UsesEbsconetEpackageRenewals)
             {
-                var CcisAddedToRenewalsProfileFeatureEnabled = featureConfig.IsAvailable(FeaturesEnum.CcisAddedToRenewalsProfile);
-
-                if (CcisAddedToRenewalsProfileFeatureEnabled)
+                if (secondaryProfiles != null)
                 {
-                    if (!String.IsNullOrEmpty(MailRenewalsToComments) && String.IsNullOrEmpty(MailRenewalsTo))
-                        results.Add(new ValidationResult("Mail Renewals To is not selected.", new[] { "MailRenewalsTo" }));
-
-                    if (!String.IsNullOrEmpty(MailRenewalsToComments) && MailRenewalsToComments.Length > 500)
-                        results.Add(new ValidationResult("Mail Renewals To Comments length cannot be greater than 500."));
-
-
-                    if (!String.IsNullOrEmpty(PaymentDocumentHeading) && PaymentDocumentHeading.Length > 30)
-                        results.Add(new ValidationResult("Payment Document Heading length cannot be greater than 30."));
-
-
-                    if (!String.IsNullOrEmpty(PaymentDocumentHeading) && ProduceRenewalAsAPaymentDocument == false)
-                        results.Add(new ValidationResult("Heading is not valid if Renewal is not set up as Payment Document."));
-
-
-
-                 //   if (UsesEbsconetEpackageRenewals == true && UsesEbsconetForRenewals == true)
-                    //    results.Add(new ValidationResult("EBSCONET ePackage Renewals (EPR) and EBSCONET Renewals are mutually exclusive."));
-
-
-                    if (UsesEbsconetEpackageRenewals)
-                    {
-                        if (secondaryProfiles != null)
-                        {
-                            if (secondaryProfiles.Any(x => x.EBSCONetCustomer == false))
-                                results.Add(new ValidationResult("Cannot use EBSCONET ePackage Renewals (EPR) if Customer is not set up for EBSCONET.", new[] { "EBSCONetCustomer" }));
-                        }
-                    }
-                    // if (MailRenewalsTo == "ZZ Subscriber" && shippingLocation != shippingLocation.Where(x => x.LegacyMappings.First(lm => lm.LegacySystemName == LegacySystemName.Subscriber).LegacyIdentifier.Reverse().ToString().Substring(0, 2).ToLower().Equals("zz") && x.IsActive))
-
-                    //  results.Add(new ValidationResult("Subscriber Code ZZ is not active.", new[] { "MailRenewalsTo" }));
-                    if (MailRenewalsTo == "ZZ Subscriber" && ActiveZZSubscriber.Count() == 0)
-                        results.Add(new ValidationResult("Subscriber Code ZZ is not active.", new[] { "MailRenewalsTo" }));
+                    if (secondaryProfiles.Any(x => x.EBSCONetCustomer == false))
+                        results.Add(new ValidationResult("Cannot use EBSCONET ePackage Renewals (EPR) if Customer is not set up for EBSCONET.", new[] { "EBSCONetCustomer" }));
                 }
-                #endregion
             }
+            // if (MailRenewalsTo == "ZZ Subscriber" && shippingLocation != shippingLocation.Where(x => x.LegacyMappings.First(lm => lm.LegacySystemName == LegacySystemName.Subscriber).LegacyIdentifier.Reverse().ToString().Substring(0, 2).ToLower().Equals("zz") && x.IsActive))
+
+            //  results.Add(new ValidationResult("Subscriber Code ZZ is not active.", new[] { "MailRenewalsTo" }));
+            if (MailRenewalsTo == "ZZ Subscriber" && ActiveZZSubscriber.Count() == 0)
+                results.Add(new ValidationResult("Subscriber Code ZZ is not active.", new[] { "MailRenewalsTo" }));
+            #endregion
             return results;
         }
     }

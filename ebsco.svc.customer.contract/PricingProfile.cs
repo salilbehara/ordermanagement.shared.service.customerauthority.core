@@ -207,13 +207,11 @@ namespace ebsco.svc.customer.contract
 
             IRepository repository = null;
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -737,22 +735,16 @@ namespace ebsco.svc.customer.contract
             #endregion
 
             #region Include Price Add-On (ERM)
-            if (featureConfig != null)
+            if (!IncludePriceAddOnERM)
             {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddInflationRatesToPricingProfile))
-                {
-                    if (!IncludePriceAddOnERM)
-                    {
-                        if (DomesticERMPercent != null && DomesticERMPercent > 0m)
-                            results.Add(new ValidationResult("Domestic ERM Percentage is not valid for selected Include Price Add-On (ERM).", new[] { "DomesticERMPercent" }));
+                if (DomesticERMPercent != null && DomesticERMPercent > 0m)
+                    results.Add(new ValidationResult("Domestic ERM Percentage is not valid for selected Include Price Add-On (ERM).", new[] { "DomesticERMPercent" }));
 
-                        if (ForeignERMPercent != null && ForeignERMPercent > 0m)
-                            results.Add(new ValidationResult("Foreign ERM Percentage is not valid for selected Include Price Add-On (ERM).", new[] { "ForeignERMPercent" }));
+                if (ForeignERMPercent != null && ForeignERMPercent > 0m)
+                    results.Add(new ValidationResult("Foreign ERM Percentage is not valid for selected Include Price Add-On (ERM).", new[] { "ForeignERMPercent" }));
 
-                        if (ApplyERMToBillLaterAndStandingOrders)
-                            results.Add(new ValidationResult("Apply ERM to Bill Later and Standing Orders is not valid for selected Include Price Add-On (ERM).", new[] { "ApplyERMToBillLaterAndStandingOrders" }));
-                    }
-                }
+                if (ApplyERMToBillLaterAndStandingOrders)
+                    results.Add(new ValidationResult("Apply ERM to Bill Later and Standing Orders is not valid for selected Include Price Add-On (ERM).", new[] { "ApplyERMToBillLaterAndStandingOrders" }));
             }
             #endregion
 
@@ -771,12 +763,10 @@ namespace ebsco.svc.customer.contract
             List<string> warnings = new List<string>();
 
             IRepository repository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -785,16 +775,10 @@ namespace ebsco.svc.customer.contract
 
             try
             {
-                if (featureConfig != null)
-                {
-                    if (featureConfig.IsAvailable(FeaturesEnum.AddInflationRatesToPricingProfile))
-                    {
-                        if (DomesticERMPercent > 10m)
-                            warnings.Add("Domestic ERM Percent is over 10.0%");
-                        if (ForeignERMPercent > 10m)
-                            warnings.Add("Foreign ERM Percent is over 10.0%");
-                    }
-                }
+                if (DomesticERMPercent > 10m)
+                    warnings.Add("Domestic ERM Percent is over 10.0%");
+                if (ForeignERMPercent > 10m)
+                    warnings.Add("Foreign ERM Percent is over 10.0%");
 
                 return warnings;
                 

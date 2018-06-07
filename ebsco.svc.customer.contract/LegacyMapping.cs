@@ -26,165 +26,152 @@ namespace ebsco.svc.customer.contract
         {
             var results = new List<ValidationResult>();
 
-            IFeatureConfiguration _feature = null;
-            try
-            {
-                _feature = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
-            }
-            catch (ActivationException ae)
+            if (IsDeleted || !IsActive)
             {
 
-            }
+                IRepository repository = null;
+                IValidationRepository validationRepo = null;
 
-            if (_feature.IsAvailable(FeaturesEnum.ManageSuffixes))
-            {
-                if (IsDeleted || !IsActive)
+                try
+                {
+                    repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
+                    validationRepo = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
+                }
+                catch (ActivationException ae)
                 {
 
-                    IRepository repository = null;
-                    IValidationRepository validationRepo = null;
+                }
 
-                    try
+                if (this.LegacySystemName == LegacySystemNames.Suffix.Name)
+                {
+                    if (validationRepo != null)
                     {
-                        repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
-                        validationRepo = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    }
-                    catch (ActivationException ae)
-                    {
-
-                    }
-
-                    if (this.LegacySystemName == LegacySystemNames.Suffix.Name)
-                    {
-                        if (validationRepo != null)
+                        if (validationRepo.HasActiveInvoices(this))
                         {
-                            if (validationRepo.HasActiveInvoices(this))
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " has pending invoices and cannot be deleted or deactivated."));
-                            }
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " has pending invoices and cannot be deleted or deactivated."));
                         }
                     }
+                }
 
-                    if (repository != null)
+                if (repository != null)
+                {
+                    var customer = repository.GetCustomer(CustomerId, RelatedEntitiesEnum.SecondaryCustomerProfiles |
+                                                                        RelatedEntitiesEnum.RenewalProfiles |
+                                                                        RelatedEntitiesEnum.OrderProfiles |
+                                                                        RelatedEntitiesEnum.InvoiceProfiles |
+                                                                        RelatedEntitiesEnum.PricingProfiles |
+                                                                        RelatedEntitiesEnum.IlsProfiles |
+                                                                        RelatedEntitiesEnum.CCICodingProfiles |
+                                                                        RelatedEntitiesEnum.ReportingProfiles |
+                                                                        RelatedEntitiesEnum.CreditsAndAdjustmentsProfiles);
+
+                    var secondaries = customer.SecondaryCustomerProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
+
+                    secondaries.ToList().ForEach(profile =>
                     {
-                        var customer = repository.GetCustomer(CustomerId, RelatedEntitiesEnum.SecondaryCustomerProfiles |
-                                                                         RelatedEntitiesEnum.RenewalProfiles |
-                                                                         RelatedEntitiesEnum.OrderProfiles |
-                                                                         RelatedEntitiesEnum.InvoiceProfiles |
-                                                                         RelatedEntitiesEnum.PricingProfiles |
-                                                                         RelatedEntitiesEnum.IlsProfiles |
-                                                                         RelatedEntitiesEnum.CCICodingProfiles |
-                                                                         RelatedEntitiesEnum.ReportingProfiles |
-                                                                         RelatedEntitiesEnum.CreditsAndAdjustmentsProfiles);
-
-                        var secondaries = customer.SecondaryCustomerProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
-
-                        secondaries.ToList().ForEach(profile =>
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Secondary Customer Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Secondary Customer Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var renewals = customer.RenewalProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var renewals = customer.RenewalProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        renewals.ToList().ForEach(profile =>
+                    renewals.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Renewals Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Renewals Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var orders = customer.OrderProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var orders = customer.OrderProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        orders.ToList().ForEach(profile =>
+                    orders.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an Orders Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an Orders Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var invoices = customer.InvoiceProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var invoices = customer.InvoiceProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        invoices.ToList().ForEach(profile =>
+                    invoices.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an Invoice Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an Invoice Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var pricing = customer.PricingProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var pricing = customer.PricingProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        pricing.ToList().ForEach(profile =>
+                    pricing.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Pricing Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Pricing Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var ils = customer.IlsProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var ils = customer.IlsProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        ils.ToList().ForEach(profile =>
+                    ils.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an ILS Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares an ILS Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var cci = customer.CCICodingProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var cci = customer.CCICodingProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        cci.ToList().ForEach(profile =>
+                    cci.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a CCI Coding Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a CCI Coding Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var reporting = customer.ReportingProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var reporting = customer.ReportingProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        reporting.ToList().ForEach(profile =>
+                    reporting.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Reporting Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Reporting Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
 
-                        var credits = customer.CreditsAndAdjustmentsProfiles.Where(x => !x.IsDefault)
-                                                                            .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
-                                                                                                                  z.LegacyIdentifier == LegacyIdentifier));
+                    var credits = customer.CreditsAndAdjustmentsProfiles.Where(x => !x.IsDefault)
+                                                                        .Where(y => y.LegacyMappings.Any(z => z.LegacySystemName == "Mainframe - Suffix" &&
+                                                                                                                z.LegacyIdentifier == LegacyIdentifier));
 
-                        credits.ToList().ForEach(profile =>
+                    credits.ToList().ForEach(profile =>
+                    {
+                        if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
                         {
-                            if (profile.LegacyMappings.Where(mapping => mapping.LegacySystemName == "Mainframe - Suffix").ToList().Count > 1)
-                            {
-                                results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Credits and Adjustments Profile with another suffix and cannot be deleted or deactivated."));
-                            }
-                        });
-                    }
+                            results.Add(new ValidationResult("Suffix " + LegacyIdentifier + " shares a Credits and Adjustments Profile with another suffix and cannot be deleted or deactivated."));
+                        }
+                    });
                 }
             }
             return results;

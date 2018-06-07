@@ -79,13 +79,11 @@ namespace ebsco.svc.customer.contract
 
             IRepository repository = null;
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -140,16 +138,10 @@ namespace ebsco.svc.customer.contract
             #endregion
 
             #region PrintJetsCumulativeReport
-            if (featureConfig != null)
-            {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddRemainingCCILines))
-                {
-                    if ((PrintJetsCumulativeReport == false) && !string.IsNullOrWhiteSpace(JetsCumulativeReportFrequency))
-                        results.Add(new ValidationResult("Cannot add Jets Cumulative Report Frequency.", new[] { "JetsCumulativeReportFrequency" }));
-                    if ((PrintJetsCumulativeReport == false) && !string.IsNullOrWhiteSpace(PrintJetsCumulativeReportComments))
-                        results.Add(new ValidationResult("Cannot add Print Jets Cumulative Report Comments.", new[] { "PrintJetsCumulativeReportComments" }));
-                }
-            }
+            if ((PrintJetsCumulativeReport == false) && !string.IsNullOrWhiteSpace(JetsCumulativeReportFrequency))
+                results.Add(new ValidationResult("Cannot add Jets Cumulative Report Frequency.", new[] { "JetsCumulativeReportFrequency" }));
+            if ((PrintJetsCumulativeReport == false) && !string.IsNullOrWhiteSpace(PrintJetsCumulativeReportComments))
+                results.Add(new ValidationResult("Cannot add Print Jets Cumulative Report Comments.", new[] { "PrintJetsCumulativeReportComments" }));
             #endregion
 
 

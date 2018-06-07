@@ -143,13 +143,11 @@ namespace ebsco.svc.customer.contract
 
             IRepository repository = null;
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     repository = ServiceLocator.Current.GetInstance(typeof(IRepository)) as IRepository;
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -253,19 +251,13 @@ namespace ebsco.svc.customer.contract
                 EJSCustomer = "No";
             }
 
-            if (featureConfig != null)
-            {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddRemainingCCILines))
-                {
-                    //Verify Ingenta ID Comments cannot be entered if Ingenta ID is null
-                    if (!string.IsNullOrWhiteSpace(IngentaIDComments) && string.IsNullOrWhiteSpace(IngentaID))
-                        results.Add(new ValidationResult("Ingenta ID Comments cannot be entered.", new[] { "IngentaIDComments" }));
+            //Verify Ingenta ID Comments cannot be entered if Ingenta ID is null
+            if (!string.IsNullOrWhiteSpace(IngentaIDComments) && string.IsNullOrWhiteSpace(IngentaID))
+                results.Add(new ValidationResult("Ingenta ID Comments cannot be entered.", new[] { "IngentaIDComments" }));
 
-                    //Verify Athens ID Comments cannot be entered if Athens ID is null
-                    if (!string.IsNullOrWhiteSpace(AthensIDComments) && string.IsNullOrWhiteSpace(AthensID))
-                        results.Add(new ValidationResult("Athens ID Comments cannot be entered.", new[] { "AthensIDComments" }));
-                }
-            }
+            //Verify Athens ID Comments cannot be entered if Athens ID is null
+            if (!string.IsNullOrWhiteSpace(AthensIDComments) && string.IsNullOrWhiteSpace(AthensID))
+                results.Add(new ValidationResult("Athens ID Comments cannot be entered.", new[] { "AthensIDComments" }));
 
             return results;
         }

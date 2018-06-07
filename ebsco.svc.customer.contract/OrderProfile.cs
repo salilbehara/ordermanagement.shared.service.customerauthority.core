@@ -168,13 +168,11 @@ namespace ebsco.svc.customer.contract
             var results = new List<ValidationResult>();
 
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
 
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -189,35 +187,29 @@ namespace ebsco.svc.customer.contract
             }
 
             #region F25195 - Add additional CCI Lines
-            if (featureConfig != null)
+            #region BillLaterandStandingOrdersOnly
+            if (BillLaterAndStandingOrdersOnly == true && (AllowStandingOrders == false || AllowBillLaterOrders == false))
+                results.Add(new ValidationResult("Allow Standing Orders and Allow Bill Later Orders must both be Yes.", new[] { "BillLaterandStandingOrdersOnly" }));
+            #endregion
+
+            #region SpecialInvoiceDate
+            if (!SpecialInvoiceDate.HasValue && UseSpecialInvoiceDateUntil.HasValue)
+                results.Add(new ValidationResult("Cannot add Use Special Invoice Date.", new[] { "SpecialInvoiceDate" }));
+            #endregion
+
+            #region CommonExpire
+            if (string.IsNullOrWhiteSpace(CommonExpire) || CommonExpire == "No")
             {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddRemainingCCILines))
-                {
-                    #region BillLaterandStandingOrdersOnly
-                    if (BillLaterAndStandingOrdersOnly == true && (AllowStandingOrders == false || AllowBillLaterOrders == false))
-                        results.Add(new ValidationResult("Allow Standing Orders and Allow Bill Later Orders must both be Yes.", new[] { "BillLaterandStandingOrdersOnly" }));
-                    #endregion
-
-                    #region SpecialInvoiceDate
-                    if (!SpecialInvoiceDate.HasValue && UseSpecialInvoiceDateUntil.HasValue)
-                        results.Add(new ValidationResult("Cannot add Use Special Invoice Date.", new[] { "SpecialInvoiceDate" }));
-                    #endregion
-
-                    #region CommonExpire
-                    if (string.IsNullOrWhiteSpace(CommonExpire) || CommonExpire == "No")
-                    {
-                        if (AllowLongTermsAndDoubleEntries == true)
-                            results.Add(new ValidationResult("Cannot add Allow Long Terms and Double Entries.", new[] { "AllowLongTermsandDoubleEntries" }));
-                        if (AllowDoubleEntries == true)
-                            results.Add(new ValidationResult("Cannot add Allow Double Entries.", new[] { "AllowDoubleEntries" }));
-                        if (AllowLongTerms == true)
-                            results.Add(new ValidationResult("Cannot add Allow Long Terms.", new[] { "AllowLongTerms" }));
-                        if (AllowShortTerms == true)
-                            results.Add(new ValidationResult("Cannot add Allow Short Terms.", new[] { "AllowShortTerms" }));
-                    }
-                    #endregion
-                }
+                if (AllowLongTermsAndDoubleEntries == true)
+                    results.Add(new ValidationResult("Cannot add Allow Long Terms and Double Entries.", new[] { "AllowLongTermsandDoubleEntries" }));
+                if (AllowDoubleEntries == true)
+                    results.Add(new ValidationResult("Cannot add Allow Double Entries.", new[] { "AllowDoubleEntries" }));
+                if (AllowLongTerms == true)
+                    results.Add(new ValidationResult("Cannot add Allow Long Terms.", new[] { "AllowLongTerms" }));
+                if (AllowShortTerms == true)
+                    results.Add(new ValidationResult("Cannot add Allow Short Terms.", new[] { "AllowShortTerms" }));
             }
+            #endregion
             #endregion
             
             #region CombinePurchaseOrdersComments
@@ -270,29 +262,22 @@ namespace ebsco.svc.customer.contract
                 results.Add(new ValidationResult("Cannot add Edit Required Before Processing Comments.", new[] { "EditRequiredBeforeProcessingComments" }));
             #endregion
 
-            if (featureConfig != null)
-            {
-                if (featureConfig.IsAvailable(FeaturesEnum.CcisAddedToOrdersProfile))
-                {
-                    #region NumberOfUsers
+            #region NumberOfUsers
 
-                    if (string.IsNullOrWhiteSpace(NumberOfUsersWithOnlineJournalAccess.ToString()) &&
-                        !string.IsNullOrWhiteSpace(NumberOfUsersWithOnlineJournalAccessComments))
-                        results.Add(new ValidationResult("Number Of Users with Online Journal Access is not provided.",
-                            new[] {"NumberOfUsersWithOnlineJournalAccess."}));
+            if (string.IsNullOrWhiteSpace(NumberOfUsersWithOnlineJournalAccess.ToString()) &&
+                !string.IsNullOrWhiteSpace(NumberOfUsersWithOnlineJournalAccessComments))
+                results.Add(new ValidationResult("Number Of Users with Online Journal Access is not provided.",
+                    new[] {"NumberOfUsersWithOnlineJournalAccess."}));
 
-                    #endregion
+            #endregion
 
-                    #region AccessToOffers
+            #region AccessToOffers
 
-                    if (string.IsNullOrEmpty(AccessToOffersForFreeOnlineJournals))
-                        results.Add(new ValidationResult(" Access to Offers is not provided",
-                            new[] {"AccessToOffersForFreeOnlineJournals"}));
-                }
+            if (string.IsNullOrEmpty(AccessToOffersForFreeOnlineJournals))
+                results.Add(new ValidationResult(" Access to Offers is not provided",
+                    new[] {"AccessToOffersForFreeOnlineJournals"}));
 
-                #endregion
-            }
-
+            #endregion
 
 
             return results;

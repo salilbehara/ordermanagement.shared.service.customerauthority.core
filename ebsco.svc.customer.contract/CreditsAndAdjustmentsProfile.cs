@@ -149,12 +149,10 @@ namespace ebsco.svc.customer.contract
             var results = new List<ValidationResult>();
 
             IValidationRepository validationRepository = null;
-            IFeatureConfiguration featureConfig = null;
             if (ServiceLocator.IsLocationProviderSet)
                 try
                 {
                     validationRepository = ServiceLocator.Current.GetInstance(typeof(IValidationRepository)) as IValidationRepository;
-                    featureConfig = ServiceLocator.Current.GetInstance(typeof(IFeatureConfiguration)) as IFeatureConfiguration;
                 }
                 catch (ActivationException)
                 {
@@ -172,14 +170,8 @@ namespace ebsco.svc.customer.contract
                 results.Add(new ValidationResult("Email Address for Adjustments is not provided.", new[] { "EmailAddressToSendAdjustments" }));
 
             #region IssueRefundbyCheckNoCredits
-            if (featureConfig != null)
-            {
-                if (featureConfig.IsAvailable(FeaturesEnum.AddRemainingCCILines))
-                {
-                    if ((IssueRefundByCheckNoCredits == false) && !string.IsNullOrWhiteSpace(IssueRefundByCheckNoCreditsComments))
-                        results.Add(new ValidationResult("Cannot add Issue Refund by Check - No Credits Comments.", new[] { "IssueRefundbyCheckNoCreditsComments" }));
-                }
-            }
+            if ((IssueRefundByCheckNoCredits == false) && !string.IsNullOrWhiteSpace(IssueRefundByCheckNoCreditsComments))
+                results.Add(new ValidationResult("Cannot add Issue Refund by Check - No Credits Comments.", new[] { "IssueRefundbyCheckNoCreditsComments" }));
             #endregion
 
             if (validationRepository != null)
